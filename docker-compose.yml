@@ -7,7 +7,7 @@ services:
       dockerfile: Dockerfile
     container_name: techsavvy
     ports:
-      - "127.0.0.1:9000:80"
+      - "127.0.0.1:9001:80"
     restart: always
     networks:
       - web-network
