@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  vue-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: techsavvy
+    ports:
+      - "127.0.0.1:9000:80"
+    restart: always
+    networks:
+      - web-network
+
+networks:
+  web-network:
+    driver: bridge
