@@ -24,23 +24,30 @@ FROM nginx:1.25.4-alpine AS production-stage
 
 # Create non-root user for security
 RUN addgroup -g 1001 -S appgroup && \
-    adduser -u 1001 -S appuser -G appgroup
+    adduser -u 1001 -S appuser -G appgroup && \
+    mkdir -p /var/www \
+             /tmp/nginx/client_temp \
+             /tmp/nginx/proxy_temp \
+             /tmp/nginx/fastcgi_temp \
+             /tmp/nginx/uwsgi_temp \
+             /tmp/nginx/scgi_temp && \
+    chown -R appuser:appgroup /tmp/nginx /var/www
 
 # Copy built files from build stage
 COPY --from=build-stage --chown=appuser:appgroup /app/dist /var/www/dist
 
 # Copy nginx config
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --chown=appuser:appgroup nginx.conf /etc/nginx/nginx.conf
 
 # Switch to non-root user
 USER appuser
 
 # Expose port
-EXPOSE 80
+EXPOSE 8080
 
 # Healthcheck
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost/ || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/ || exit 1
 
 # Start nginx
 CMD ["nginx", "-g", "daemon off;"]
