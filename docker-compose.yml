@@ -8,9 +8,30 @@ services:
     container_name: techsavvy
     ports:
       - "127.0.0.1:9001:80"
-    restart: always
+    restart: unless-stopped
     networks:
       - web-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    security_opt:
+      - "no-new-privileges:true"
 
 networks:
   web-network:
