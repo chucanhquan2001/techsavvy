@@ -8,8 +8,8 @@ WORKDIR /app
 # Copy package files first for better layer caching
 COPY package*.json ./
 
-# Install dependencies with production flag
-RUN npm ci --only=production=false
+# Install dependencies
+RUN npm ci
 
 # Copy source code
 COPY . .
@@ -47,7 +47,7 @@ EXPOSE 8080
 
 # Healthcheck
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/ || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:8080/ || exit 1
 
-# Start nginx
-CMD ["nginx", "-g", "daemon off;"]
+# Run nginx directly and skip the base image entrypoint scripts
+ENTRYPOINT ["nginx", "-g", "daemon off;"]
