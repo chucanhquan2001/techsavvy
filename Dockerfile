@@ -30,7 +30,8 @@ RUN addgroup -g 1001 -S appgroup && \
              /tmp/nginx/proxy_temp \
              /tmp/nginx/fastcgi_temp \
              /tmp/nginx/uwsgi_temp \
-             /tmp/nginx/scgi_temp && \
+             /tmp/nginx/scgi_temp \
+             /var/www/dist && \
     chown -R appuser:appgroup /tmp/nginx /var/www
 
 # Copy built files from build stage
@@ -38,6 +39,7 @@ COPY --from=build-stage --chown=appuser:appgroup /app/dist /var/www/dist
 
 # Copy nginx config
 COPY --chown=appuser:appgroup nginx.conf /etc/nginx/nginx.conf
+COPY --chown=appuser:appgroup docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
 # Switch to non-root user
 USER appuser
@@ -49,5 +51,5 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:8080/ || exit 1
 
-# Run nginx directly and skip the base image entrypoint scripts
-ENTRYPOINT ["nginx", "-g", "daemon off;"]
+# Generate runtime config, then start nginx directly
+ENTRYPOINT ["/bin/sh", "/usr/local/bin/docker-entrypoint.sh"]
