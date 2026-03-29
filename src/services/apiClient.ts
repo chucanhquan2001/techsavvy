@@ -36,7 +36,7 @@ class ApiClient {
           'Accept': 'application/json',
           ...fetchOptions.headers,
         },
-        credentials: 'same-origin',
+        credentials: 'include',
       });
 
       clearTimeout(timeoutId);
