@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useAuth } from '@/composables/useAuth';
+import { useContact } from '@/composables/useContact';
 
 interface Experience {
   period: string;
@@ -54,19 +55,10 @@ const softSkills: string[] = [
   'Technical English (reading/research)',
 ];
 
-const {
-  status,
-  user,
-  expiresAt,
-  error,
-  isInitialized,
-  isBusy,
-  isAuthenticated,
-  initialize,
-  login,
-  logout,
-  refreshSession,
-} = useAuth();
+const { status, user, isInitialized, isBusy, isAuthenticated, initialize, login } = useAuth();
+const { submitContact, isSubmitting, submitSuccess, submitError } = useContact();
+
+const contactContent = ref('');
 
 const userLabel = computed(() => {
   if (!user.value) {
@@ -83,37 +75,38 @@ const userLabel = computed(() => {
   );
 });
 
-const expiresAtLabel = computed(() => {
-  if (!expiresAt.value) {
-    return 'Session managed by auth server';
-  }
-
-  const date = new Date(expiresAt.value);
-
-  if (Number.isNaN(date.getTime())) {
-    return expiresAt.value;
-  }
-
-  return new Intl.DateTimeFormat('vi-VN', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(date);
-});
-
 const statusLabel = computed(() => {
   switch (status.value) {
     case 'authenticating':
-      return 'Đang hoàn tất đăng nhập bằng PKCE';
+      return 'Đang hoàn tất đăng nhập';
     case 'loading':
       return isAuthenticated.value ? 'Đang đồng bộ lại phiên' : 'Đang kiểm tra phiên đăng nhập';
     case 'authenticated':
-      return 'Đăng nhập an toàn qua HttpOnly cookie';
+      return 'Đã đăng nhập';
     case 'guest':
-      return 'Chưa có phiên đăng nhập';
+      return 'Chưa đăng nhập';
     default:
-      return 'Đang khởi tạo bảo mật';
+      return 'Đang khởi tạo';
   }
 });
+
+const canSubmitContact = computed(() => {
+  return isAuthenticated.value && contactContent.value.trim().length > 0 && !isSubmitting.value;
+});
+
+async function handleSubmitContact(): Promise<void> {
+  const content = contactContent.value.trim();
+
+  if (!isAuthenticated.value || !content) {
+    return;
+  }
+
+  const response = await submitContact({ content });
+
+  if (response) {
+    contactContent.value = '';
+  }
+}
 
 onMounted(() => {
   void initialize();
@@ -127,7 +120,7 @@ onMounted(() => {
 
     <main class="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
       <section class="reveal delay-1 rounded-3xl border border-line bg-card/80 p-6 backdrop-blur-sm sm:p-9">
-        <div class="flex flex-col gap-8 lg:flex-row lg:items-start lg:justify-between">
+        <div class="flex flex-col gap-8">
           <div class="max-w-3xl">
             <p class="font-display text-sm uppercase tracking-[0.3em] text-neon">Portfolio</p>
             <h1 class="mt-3 font-display text-3xl font-bold text-white sm:text-5xl">Chuc Anh Quan</h1>
@@ -143,69 +136,6 @@ onMounted(() => {
 
             <p class="mt-6 max-w-3xl text-slate-300">{{ introSummary }}</p>
           </div>
-
-          <aside class="w-full max-w-md rounded-3xl border border-neon/30 bg-slate-950/70 p-5 shadow-[0_20px_80px_rgba(52,211,153,0.12)]">
-            <div class="flex items-center justify-between gap-4">
-              <div>
-                <p class="text-sm uppercase tracking-[0.28em] text-neon">Secure Login</p>
-                <h2 class="mt-2 font-display text-2xl font-bold text-white">OAuth2 PKCE</h2>
-              </div>
-              <span class="status-pill" :data-state="status">
-                {{ isInitialized ? statusLabel : 'Đang boot session' }}
-              </span>
-            </div>
-
-            <p class="mt-4 text-sm leading-6 text-slate-300">
-              Flow: redirect sang auth server, callback nhận <code>code</code>, exchange bằng PKCE và giữ access token trong
-              <code>HttpOnly cookie</code>. Toàn bộ API gọi bằng <code>credentials: 'include'</code>.
-            </p>
-
-            <div class="mt-5 rounded-2xl border border-line/80 bg-card/70 p-4">
-              <template v-if="isAuthenticated">
-                <p class="text-sm text-slate-400">Đã đăng nhập</p>
-                <p class="mt-1 text-xl font-semibold text-white">{{ userLabel }}</p>
-                <p class="mt-3 text-sm text-slate-300">
-                  Hết hạn phiên: <span class="text-white">{{ expiresAtLabel }}</span>
-                </p>
-              </template>
-
-              <template v-else>
-                <p class="text-sm text-slate-400">Trạng thái hiện tại</p>
-                <p class="mt-1 text-xl font-semibold text-white">
-                  {{ isBusy ? 'Đang kiểm tra phiên...' : 'Sẵn sàng đăng nhập an toàn' }}
-                </p>
-                <p class="mt-3 text-sm text-slate-300">
-                  Nếu cookie trên auth server còn hiệu lực, app sẽ tự khôi phục phiên khi bạn quay lại web.
-                </p>
-              </template>
-            </div>
-
-            <p v-if="error" class="mt-4 rounded-2xl border border-rose-400/30 bg-rose-500/10 p-3 text-sm text-rose-100">
-              {{ error }}
-            </p>
-
-            <div class="mt-5 flex flex-wrap gap-3">
-              <button class="action-button action-primary" :disabled="isBusy" @click="login">
-                {{ isAuthenticated ? 'Đăng nhập lại' : 'Đăng nhập' }}
-              </button>
-              <button class="action-button action-secondary" :disabled="isBusy" @click="refreshSession">
-                Kiểm tra phiên
-              </button>
-              <button
-                class="action-button action-secondary"
-                :disabled="isBusy || !isAuthenticated"
-                @click="logout"
-              >
-                Đăng xuất
-              </button>
-            </div>
-
-            <ul class="mt-5 space-y-2 text-sm text-slate-400">
-              <li>- Không lưu access token trong localStorage/sessionStorage.</li>
-              <li>- `state` và `code_verifier` chỉ tồn tại tạm thời trong `sessionStorage`.</li>
-              <li>- Thời gian giữ phiên đổi được trong `public/env.js` qua `AUTH_SESSION_TTL_SECONDS`.</li>
-            </ul>
-          </aside>
         </div>
       </section>
 
@@ -277,6 +207,77 @@ onMounted(() => {
           </div>
         </article>
       </section>
+
+      <section class="reveal delay-3 mt-8">
+        <article class="rounded-3xl border border-line bg-card/80 p-6 sm:p-8">
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 class="section-title">Liên hệ</h2>
+              <p class="mt-2 text-sm text-slate-300">Để lại lời nhắn cho tôi qua form bên dưới.</p>
+            </div>
+
+            <div class="inline-flex items-center gap-3 self-start rounded-full border border-line/80 bg-slate-950/50 px-4 py-2">
+              <span class="status-dot" :data-authenticated="isAuthenticated"></span>
+              <div class="text-sm">
+                <p class="font-medium text-white">
+                  {{ isAuthenticated ? userLabel : 'Khách truy cập' }}
+                </p>
+                <p class="text-slate-400">
+                  {{ isInitialized ? statusLabel : 'Đang kiểm tra phiên đăng nhập' }}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <form class="mt-6 space-y-4" @submit.prevent="handleSubmitContact">
+            <label class="block">
+              <span class="mb-2 block text-sm font-medium text-slate-200">Nội dung liên hệ</span>
+              <textarea
+                v-model="contactContent"
+                class="contact-input min-h-32"
+                placeholder="Nhập nội dung bạn muốn gửi..."
+              ></textarea>
+            </label>
+
+            <p
+              v-if="!isAuthenticated"
+              class="rounded-2xl border border-amber-400/30 bg-amber-500/10 p-3 text-sm text-amber-100"
+            >
+              Bạn cần
+              <button class="inline-login" type="button" @click="login">đăng nhập</button>
+              trước khi gửi liên hệ.
+            </p>
+
+            <p v-else-if="!contactContent.trim().length" class="text-sm text-slate-400">
+              Nhập nội dung rồi bấm gửi để tạo liên hệ.
+            </p>
+
+            <p
+              v-if="submitError"
+              class="rounded-2xl border border-rose-400/30 bg-rose-500/10 p-3 text-sm text-rose-100"
+            >
+              {{ submitError }}
+            </p>
+
+            <p
+              v-if="submitSuccess"
+              class="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 p-3 text-sm text-emerald-100"
+            >
+              {{ submitSuccess }}
+            </p>
+
+            <div class="flex justify-end">
+              <button
+                class="action-button action-primary min-w-32"
+                :disabled="!canSubmitContact || isBusy"
+                type="submit"
+              >
+                {{ isSubmitting ? 'Đang gửi...' : 'Gửi liên hệ' }}
+              </button>
+            </div>
+          </form>
+        </article>
+      </section>
     </main>
   </div>
 </template>
@@ -304,37 +305,6 @@ onMounted(() => {
   transform: translateY(-2px);
 }
 
-.status-pill {
-  border-radius: 999px;
-  border: 1px solid #374151;
-  padding: 0.45rem 0.8rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #e5e7eb;
-}
-
-.status-pill[data-state='authenticated'] {
-  border-color: rgba(52, 211, 153, 0.4);
-  background: rgba(52, 211, 153, 0.12);
-  color: #bbf7d0;
-}
-
-.status-pill[data-state='authenticating'],
-.status-pill[data-state='loading'],
-.status-pill[data-state='idle'] {
-  border-color: rgba(56, 189, 248, 0.35);
-  background: rgba(56, 189, 248, 0.12);
-  color: #bae6fd;
-}
-
-.status-pill[data-state='guest'] {
-  border-color: rgba(251, 191, 36, 0.25);
-  background: rgba(251, 191, 36, 0.1);
-  color: #fde68a;
-}
-
 .action-button {
   border: 0;
   border-radius: 0.9rem;
@@ -359,10 +329,54 @@ onMounted(() => {
   color: #031b17;
 }
 
-.action-secondary {
-  background: rgba(15, 23, 42, 0.8);
-  color: #e2e8f0;
+.contact-input {
+  width: 100%;
   border: 1px solid rgba(71, 85, 105, 0.8);
+  border-radius: 1rem;
+  background: rgba(15, 23, 42, 0.72);
+  padding: 0.95rem 1rem;
+  color: #f8fafc;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  resize: vertical;
+}
+
+.contact-input::placeholder {
+  color: #94a3b8;
+}
+
+.contact-input:focus {
+  border-color: rgba(52, 211, 153, 0.8);
+  box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.16);
+}
+
+.inline-login {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: #fde68a;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.inline-login:hover {
+  color: #fef3c7;
+}
+
+.status-dot {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 999px;
+  background: #f59e0b;
+  box-shadow: 0 0 0 6px rgba(245, 158, 11, 0.12);
+  flex-shrink: 0;
+}
+
+.status-dot[data-authenticated='true'] {
+  background: #34d399;
+  box-shadow: 0 0 0 6px rgba(52, 211, 153, 0.12);
 }
 
 .reveal {
