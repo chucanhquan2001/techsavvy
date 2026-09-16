@@ -6,12 +6,15 @@ const runtimeConfig = window.__APP_CONFIG__;
 
 export const apiConfig = {
   baseUrl:
-    runtimeConfig.API_BASE_URL ||
+    runtimeConfig?.API_BASE_URL ||
     import.meta.env.VITE_API_BASE_URL ||
     'http://localhost:8000/api',
   timeout: 10000,
   endpoints: {
     trackVisit: '/track-visit',
+    news: '/news',
+    marketPrices: '/market-prices',
+    techTrends: '/tech-trends',
   },
 } as const;
 

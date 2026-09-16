@@ -1,406 +1,382 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { useAuth } from '@/composables/useAuth';
-import { useContact } from '@/composables/useContact';
+import { RouterLink } from 'vue-router';
+import AppHeader from '@/components/AppHeader.vue';
+import { useMarketPrices } from '@/composables/useMarketPrices';
+import { useNews } from '@/composables/useNews';
+import { useTechTrends } from '@/composables/useTechTrends';
+import { excerpt, formatDate, formatDateTime, formatPrice } from '@/utils/format';
 
-interface Experience {
-  period: string;
-  company: string;
-  role: string;
-  projects: string[];
-  tech: string;
+const {
+  items: marketItems,
+  isLoading: marketLoading,
+  error: marketError,
+  category,
+  hasPrev: marketHasPrev,
+  hasNext: marketHasNext,
+  meta: marketMeta,
+  load: loadMarket,
+  setCategory,
+  nextPage: marketNext,
+  prevPage: marketPrev,
+} = useMarketPrices();
+
+const {
+  items: trendItems,
+  isLoading: trendLoading,
+  error: trendError,
+  query,
+  hasPrev: trendHasPrev,
+  hasNext: trendHasNext,
+  meta: trendMeta,
+  load: loadTrends,
+  search,
+  nextPage: trendNext,
+  prevPage: trendPrev,
+} = useTechTrends();
+
+const {
+  items: newsItems,
+  isLoading: newsLoading,
+  error: newsError,
+  load: loadNews,
+} = useNews();
+
+const searchInput = ref('');
+const expandedNewsId = ref<number | null>(null);
+
+const categories = computed(() => {
+  const set = new Set<string>();
+  marketItems.value.forEach((item) => {
+    if (item.category) {
+      set.add(item.category);
+    }
+  });
+  if (category.value) {
+    set.add(category.value);
+  }
+  return Array.from(set).sort();
+});
+
+function toggleNews(id: number): void {
+  expandedNewsId.value = expandedNewsId.value === id ? null : id;
 }
 
-const introLine = 'PHP Developer | 3+ years of experience';
-const introSummary =
-  'I build practical, performance-oriented web systems and enjoy turning business workflows into reliable products with clean architecture and measurable impact.';
+async function handleSearch(): Promise<void> {
+  await search(searchInput.value.trim());
+}
 
-const experiences: Experience[] = [
-  {
-    period: '03/2023 - Present',
-    company: 'IMAP Vietnam',
-    role: 'Developer',
-    projects: [
-      'Ticket Project: Lead Developer for database design, requirement gathering, API development, and performance optimization with cache/queue/event listeners.',
-      'LMS Student Website: Lead Frontend Developer using Vue 3, TypeScript, Pinia, and Tailwind CSS; built reusable UI and improved initial page load performance.',
-      'Enterprise Management System (HRM/CRM/LMS): Developed core and specialized modules and internal APIs for business operations.',
-    ],
-    tech: 'PHP, Laravel, JavaScript, TypeScript, Vue 3, Vite, Pinia, MongoDB, MySQL, Docker',
-  },
-  {
-    period: '08/2022 - 02/2023',
-    company: 'VNEXT Software',
-    role: 'Intern Developer',
-    projects: [
-      'Discovery Project: Developed customer care management features for Japanese clients.',
-      'Completed assigned tasks successfully and received strong feedback from management.',
-    ],
-    tech: 'PHP, Zend Framework, JavaScript, MySQL',
-  },
-];
-
-const technicalSkills: string[] = [
-  'PHP (Laravel), JavaScript + TypeScript (Vue 3, jQuery), HTML5, CSS3 (Bootstrap, Tailwind CSS)',
-  'MySQL, SQL Server, MongoDB',
-  'Microservices, API Gateway, RESTful API',
-  'Repository Pattern, Dependency Injection, Service Container (Laravel)',
-  'Docker (basic), Git (GitHub/GitLab)',
-];
-
-const softSkills: string[] = [
-  'Teamwork',
-  'Effective communication',
-  'Problem solving',
-  'Time management',
-  'Technical English (reading/research)',
-];
-
-const { status, user, isInitialized, isBusy, isAuthenticated, initialize, login } = useAuth();
-const { submitContact, isSubmitting, submitSuccess, submitError } = useContact();
-
-const contactContent = ref('');
-
-const userLabel = computed(() => {
-  if (!user.value) {
-    return 'Guest';
-  }
-
-  return (
-    user.value.display_name ||
-    user.value.name ||
-    user.value.email ||
-    user.value.username ||
-    user.value.sub ||
-    'Authenticated user'
-  );
-});
-
-const statusLabel = computed(() => {
-  switch (status.value) {
-    case 'authenticating':
-      return 'Đang hoàn tất đăng nhập';
-    case 'loading':
-      return isAuthenticated.value ? 'Đang đồng bộ lại phiên' : 'Đang kiểm tra phiên đăng nhập';
-    case 'authenticated':
-      return 'Đã đăng nhập';
-    case 'guest':
-      return 'Chưa đăng nhập';
-    default:
-      return 'Đang khởi tạo';
-  }
-});
-
-const canSubmitContact = computed(() => {
-  return isAuthenticated.value && contactContent.value.trim().length > 0 && !isSubmitting.value;
-});
-
-async function handleSubmitContact(): Promise<void> {
-  const content = contactContent.value.trim();
-
-  if (!isAuthenticated.value || !content) {
-    return;
-  }
-
-  const response = await submitContact({ content });
-
-  if (response) {
-    contactContent.value = '';
-  }
+async function handleCategoryChange(event: Event): Promise<void> {
+  const value = (event.target as HTMLSelectElement).value;
+  await setCategory(value);
 }
 
 onMounted(() => {
-  void initialize();
+  void loadMarket();
+  void loadTrends();
+  void loadNews();
 });
 </script>
 
 <template>
-  <div class="relative overflow-hidden bg-ink text-slate-200 font-body">
-    <div class="pointer-events-none absolute -top-24 -left-20 h-72 w-72 rounded-full bg-neon/20 blur-3xl"></div>
-    <div class="pointer-events-none absolute top-56 -right-16 h-72 w-72 rounded-full bg-skyline/20 blur-3xl"></div>
+  <div class="min-h-screen bg-ink text-slate-200 font-body">
+    <AppHeader />
 
-    <main class="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
-      <section class="reveal delay-1 rounded-3xl border border-line bg-card/80 p-6 backdrop-blur-sm sm:p-9">
-        <div class="flex flex-col gap-8">
-          <div class="max-w-3xl">
-            <p class="font-display text-sm uppercase tracking-[0.3em] text-neon">Portfolio</p>
-            <h1 class="mt-3 font-display text-3xl font-bold text-white sm:text-5xl">Chuc Anh Quan</h1>
-            <p class="mt-3 text-lg text-slate-300 sm:text-xl">{{ introLine }}</p>
-
-            <div class="mt-6 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
-              <a class="chip" href="tel:0853009301">0853 009 301</a>
-              <a class="chip" href="mailto:chucquann2011@gmail.com">chucquann2011@gmail.com</a>
-              <a class="chip" href="https://quanca.net" target="_blank" rel="noreferrer">quanca.net</a>
-              <p class="chip">Me Tri, Ha Noi</p>
-              <p class="chip">Male | 04-02-2001</p>
-            </div>
-
-            <p class="mt-6 max-w-3xl text-slate-300">{{ introSummary }}</p>
-          </div>
-        </div>
+    <main class="mx-auto max-w-5xl space-y-10 px-4 py-8 sm:px-6 sm:py-10">
+      <section>
+        <p class="text-sm text-slate-400">Public API data</p>
+        <h1 class="mt-1 font-display text-2xl font-semibold text-white sm:text-3xl">
+          TechSavvy Dashboard
+        </h1>
+        <p class="mt-2 max-w-2xl text-sm text-slate-400">
+          Giá thị trường, tech trends và tin tức — tối giản, cập nhật từ API.
+        </p>
       </section>
 
-      <section class="reveal delay-2 mt-8 grid gap-6 lg:grid-cols-[1.3fr_0.7fr]">
-        <article class="rounded-3xl border border-line bg-card/80 p-6 sm:p-8">
-          <h2 class="section-title">Work Experience</h2>
-          <div class="mt-6 space-y-6">
-            <div
-              v-for="experience in experiences"
-              :key="experience.company"
-              class="rounded-2xl border border-line/80 bg-slate-900/40 p-5"
-            >
-              <p class="text-sm text-neon">{{ experience.period }}</p>
-              <h3 class="mt-1 text-xl font-semibold text-white">
-                {{ experience.company }} · {{ experience.role }}
-              </h3>
-              <ul class="mt-3 space-y-2 text-sm text-slate-300 sm:text-base">
-                <li v-for="project in experience.projects" :key="project">- {{ project }}</li>
-              </ul>
-              <p class="mt-3 text-sm text-slate-400">
-                <span class="font-medium text-slate-200">Tech stack:</span> {{ experience.tech }}
-              </p>
-            </div>
-          </div>
-        </article>
-
-        <div class="space-y-6">
-          <article class="rounded-3xl border border-line bg-card/80 p-6 sm:p-8">
-            <h2 class="section-title">Education</h2>
-            <div class="mt-4 space-y-2 text-slate-300">
-              <p class="text-neon">08/2019 - 02/2023</p>
-              <p class="font-semibold text-white">FPT Polytechnic</p>
-              <p>Information Technology (GPA: 8.5/10)</p>
-              <p>Three-time Excellent Student award recipient.</p>
-            </div>
-          </article>
-
-          <article class="rounded-3xl border border-line bg-card/80 p-6 sm:p-8">
-            <h2 class="section-title">Awards</h2>
-            <p class="mt-4 rounded-xl border border-neon/30 bg-neon/10 p-3 text-neon">
-              2025 - Employee of the Year
+      <!-- Market Prices -->
+      <section class="rounded-2xl border border-line bg-card p-5 sm:p-6">
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 class="font-display text-lg font-semibold text-white">Giá thị trường</h2>
+            <p class="mt-1 text-sm text-slate-400">
+              {{ marketMeta.total != null ? `${marketMeta.total} bản ghi` : 'Snapshot mới nhất' }}
             </p>
-          </article>
+          </div>
+
+          <label class="block text-sm text-slate-400">
+            Category
+            <select
+              class="mt-1 block w-full min-w-40 rounded-lg border border-line bg-slate-950 px-3 py-2 text-slate-200 outline-none focus:border-slate-500 sm:w-auto"
+              :value="category"
+              @change="handleCategoryChange"
+            >
+              <option value="">Tất cả</option>
+              <option v-for="item in categories" :key="item" :value="item">
+                {{ item }}
+              </option>
+            </select>
+          </label>
+        </div>
+
+        <p v-if="marketLoading" class="mt-6 text-sm text-slate-400">Đang tải giá thị trường…</p>
+
+        <div
+          v-else-if="marketError"
+          class="mt-6 rounded-xl border border-rose-500/30 bg-rose-500/5 p-4 text-sm text-rose-200"
+        >
+          <p>{{ marketError }}</p>
+          <button class="mt-3 text-slate-200 underline" type="button" @click="loadMarket()">
+            Thử lại
+          </button>
+        </div>
+
+        <p v-else-if="!marketItems.length" class="mt-6 text-sm text-slate-400">
+          Chưa có dữ liệu giá thị trường.
+        </p>
+
+        <div v-else class="mt-6 overflow-x-auto">
+          <table class="w-full min-w-[640px] border-collapse text-left text-sm">
+            <thead>
+              <tr class="border-b border-line text-slate-400">
+                <th class="pb-3 pr-4 font-medium">Instrument</th>
+                <th class="pb-3 pr-4 font-medium">Category</th>
+                <th class="pb-3 pr-4 font-medium">Value</th>
+                <th class="pb-3 pr-4 font-medium">Quoted</th>
+                <th class="pb-3 font-medium">Source</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="item in marketItems"
+                :key="`${item.instrument}-${item.source}-${item.quoted_at}`"
+                class="border-b border-line/60 last:border-0"
+              >
+                <td class="py-3 pr-4">
+                  <RouterLink
+                    class="text-white underline-offset-2 hover:underline"
+                    :to="`/markets/${encodeURIComponent(item.instrument)}`"
+                  >
+                    {{ item.instrument }}
+                  </RouterLink>
+                </td>
+                <td class="py-3 pr-4">
+                  <span class="pill">{{ item.category || '—' }}</span>
+                </td>
+                <td class="py-3 pr-4 text-slate-200">
+                  {{ formatPrice(item.value, item.currency, item.unit) }}
+                </td>
+                <td class="py-3 pr-4 text-slate-400">
+                  {{ formatDateTime(item.quoted_at) }}
+                </td>
+                <td class="py-3 text-slate-400">{{ item.source }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div
+          v-if="(marketMeta.last_page ?? 1) > 1"
+          class="mt-4 flex items-center justify-between text-sm text-slate-400"
+        >
+          <span>
+            Trang {{ marketMeta.current_page ?? 1 }} / {{ marketMeta.last_page ?? 1 }}
+          </span>
+          <div class="flex gap-3">
+            <button
+              class="pager-btn"
+              type="button"
+              :disabled="!marketHasPrev || marketLoading"
+              @click="marketPrev()"
+            >
+              Trước
+            </button>
+            <button
+              class="pager-btn"
+              type="button"
+              :disabled="!marketHasNext || marketLoading"
+              @click="marketNext()"
+            >
+              Sau
+            </button>
+          </div>
         </div>
       </section>
 
-      <section class="reveal delay-3 mt-8 grid gap-6 lg:grid-cols-2">
-        <article class="rounded-3xl border border-line bg-card/80 p-6 sm:p-8">
-          <h2 class="section-title">Technical Skills</h2>
-          <ul class="mt-5 space-y-3 text-slate-300">
-            <li v-for="skill in technicalSkills" :key="skill">- {{ skill }}</li>
-          </ul>
-        </article>
-
-        <article class="rounded-3xl border border-line bg-card/80 p-6 sm:p-8">
-          <h2 class="section-title">Soft Skills & Interests</h2>
-          <div class="mt-5 flex flex-wrap gap-2">
-            <span
-              v-for="skill in softSkills"
-              :key="skill"
-              class="rounded-full border border-slate-600 px-3 py-1 text-sm text-slate-200"
-            >
-              {{ skill }}
-            </span>
+      <!-- Tech Trends -->
+      <section class="rounded-2xl border border-line bg-card p-5 sm:p-6">
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 class="font-display text-lg font-semibold text-white">Tech trends</h2>
+            <p class="mt-1 text-sm text-slate-400">
+              {{ trendMeta.total != null ? `${trendMeta.total} trends` : 'Xu hướng công nghệ' }}
+            </p>
           </div>
-          <div class="mt-6 rounded-2xl border border-skyline/30 bg-skyline/10 p-4">
-            <p class="text-sm uppercase tracking-widest text-skyline">Interests</p>
-            <p class="mt-1 text-white">Sports & Traveling</p>
-          </div>
-        </article>
-      </section>
 
-      <section class="reveal delay-3 mt-8">
-        <article class="rounded-3xl border border-line bg-card/80 p-6 sm:p-8">
-          <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <h2 class="section-title">Liên hệ</h2>
-              <p class="mt-2 text-sm text-slate-300">Để lại lời nhắn cho tôi qua form bên dưới.</p>
-            </div>
+          <form class="flex w-full gap-2 sm:w-auto" @submit.prevent="handleSearch">
+            <input
+              v-model="searchInput"
+              class="w-full rounded-lg border border-line bg-slate-950 px-3 py-2 text-sm text-slate-200 outline-none placeholder:text-slate-500 focus:border-slate-500 sm:w-56"
+              type="search"
+              placeholder="Tìm theo tiêu đề…"
+            />
+            <button class="pager-btn" type="submit">Tìm</button>
+          </form>
+        </div>
 
-            <div class="inline-flex items-center gap-3 self-start rounded-full border border-line/80 bg-slate-950/50 px-4 py-2">
-              <span class="status-dot" :data-authenticated="isAuthenticated"></span>
-              <div class="text-sm">
-                <p class="font-medium text-white">
-                  {{ isAuthenticated ? userLabel : 'Khách truy cập' }}
-                </p>
-                <p class="text-slate-400">
-                  {{ isInitialized ? statusLabel : 'Đang kiểm tra phiên đăng nhập' }}
-                </p>
+        <p v-if="trendLoading" class="mt-6 text-sm text-slate-400">Đang tải tech trends…</p>
+
+        <div
+          v-else-if="trendError"
+          class="mt-6 rounded-xl border border-rose-500/30 bg-rose-500/5 p-4 text-sm text-rose-200"
+        >
+          <p>{{ trendError }}</p>
+          <button class="mt-3 text-slate-200 underline" type="button" @click="loadTrends()">
+            Thử lại
+          </button>
+        </div>
+
+        <p v-else-if="!trendItems.length" class="mt-6 text-sm text-slate-400">
+          {{ query ? 'Không tìm thấy trend phù hợp.' : 'Chưa có tech trends.' }}
+        </p>
+
+        <div v-else class="mt-6 grid gap-3">
+          <RouterLink
+            v-for="item in trendItems"
+            :key="item.slug"
+            :to="`/trends/${encodeURIComponent(item.slug)}`"
+            class="block rounded-xl border border-line bg-slate-950/40 p-4 no-underline transition-colors hover:border-slate-500"
+          >
+            <div class="flex flex-wrap items-start justify-between gap-2">
+              <h3 class="font-medium text-white">{{ item.title }}</h3>
+              <div class="flex flex-wrap gap-2">
+                <span v-if="item.language" class="pill">{{ item.language }}</span>
+                <span v-if="item.stars != null" class="pill">★ {{ item.stars }}</span>
               </div>
             </div>
-          </div>
-
-          <form class="mt-6 space-y-4" @submit.prevent="handleSubmitContact">
-            <label class="block">
-              <span class="mb-2 block text-sm font-medium text-slate-200">Nội dung liên hệ</span>
-              <textarea
-                v-model="contactContent"
-                class="contact-input min-h-32"
-                placeholder="Nhập nội dung bạn muốn gửi..."
-              ></textarea>
-            </label>
-
-            <p
-              v-if="!isAuthenticated"
-              class="rounded-2xl border border-amber-400/30 bg-amber-500/10 p-3 text-sm text-amber-100"
+            <p v-if="item.summary" class="mt-2 text-sm text-slate-400">
+              {{ excerpt(item.summary) }}
+            </p>
+            <div
+              v-if="item.technologies?.length"
+              class="mt-3 flex flex-wrap gap-1.5"
             >
-              Bạn cần
-              <button class="inline-login" type="button" @click="login">đăng nhập</button>
-              trước khi gửi liên hệ.
-            </p>
-
-            <p v-else-if="!contactContent.trim().length" class="text-sm text-slate-400">
-              Nhập nội dung rồi bấm gửi để tạo liên hệ.
-            </p>
-
-            <p
-              v-if="submitError"
-              class="rounded-2xl border border-rose-400/30 bg-rose-500/10 p-3 text-sm text-rose-100"
-            >
-              {{ submitError }}
-            </p>
-
-            <p
-              v-if="submitSuccess"
-              class="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 p-3 text-sm text-emerald-100"
-            >
-              {{ submitSuccess }}
-            </p>
-
-            <div class="flex justify-end">
-              <button
-                class="action-button action-primary min-w-32"
-                :disabled="!canSubmitContact || isBusy"
-                type="submit"
+              <span
+                v-for="tech in item.technologies.slice(0, 5)"
+                :key="tech"
+                class="pill"
               >
-                {{ isSubmitting ? 'Đang gửi...' : 'Gửi liên hệ' }}
-              </button>
+                {{ tech }}
+              </span>
             </div>
-          </form>
-        </article>
+          </RouterLink>
+        </div>
+
+        <div
+          v-if="(trendMeta.last_page ?? 1) > 1"
+          class="mt-4 flex items-center justify-between text-sm text-slate-400"
+        >
+          <span>
+            Trang {{ trendMeta.current_page ?? 1 }} / {{ trendMeta.last_page ?? 1 }}
+          </span>
+          <div class="flex gap-3">
+            <button
+              class="pager-btn"
+              type="button"
+              :disabled="!trendHasPrev || trendLoading"
+              @click="trendPrev()"
+            >
+              Trước
+            </button>
+            <button
+              class="pager-btn"
+              type="button"
+              :disabled="!trendHasNext || trendLoading"
+              @click="trendNext()"
+            >
+              Sau
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- News -->
+      <section class="rounded-2xl border border-line bg-card p-5 sm:p-6">
+        <h2 class="font-display text-lg font-semibold text-white">News</h2>
+        <p class="mt-1 text-sm text-slate-400">Tin tức — bấm để xem nội dung</p>
+
+        <p v-if="newsLoading" class="mt-6 text-sm text-slate-400">Đang tải tin tức…</p>
+
+        <div
+          v-else-if="newsError"
+          class="mt-6 rounded-xl border border-rose-500/30 bg-rose-500/5 p-4 text-sm text-rose-200"
+        >
+          <p>{{ newsError }}</p>
+          <button class="mt-3 text-slate-200 underline" type="button" @click="loadNews()">
+            Thử lại
+          </button>
+        </div>
+
+        <p v-else-if="!newsItems.length" class="mt-6 text-sm text-slate-400">
+          Chưa có tin tức.
+        </p>
+
+        <ul v-else class="mt-6 divide-y divide-line/80">
+          <li v-for="item in newsItems" :key="item.id" class="py-4 first:pt-0 last:pb-0">
+            <button
+              class="w-full text-left"
+              type="button"
+              @click="toggleNews(item.id)"
+            >
+              <div class="flex flex-wrap items-baseline justify-between gap-2">
+                <h3 class="font-medium text-white">{{ item.title }}</h3>
+                <span class="text-xs text-slate-500">{{ formatDate(item.createdAt) }}</span>
+              </div>
+              <p class="mt-1 text-sm text-slate-400">
+                {{ excerpt(item.content) }}
+              </p>
+            </button>
+            <div
+              v-if="expandedNewsId === item.id"
+              class="mt-3 rounded-xl border border-line bg-slate-950/50 p-4 text-sm leading-relaxed text-slate-300 whitespace-pre-wrap"
+            >
+              {{ item.content }}
+            </div>
+          </li>
+        </ul>
       </section>
     </main>
   </div>
 </template>
 
 <style scoped>
-.section-title {
-  font-family: "Space Grotesk", sans-serif;
-  font-size: 1.4rem;
-  font-weight: 700;
-  color: #f8fafc;
-}
-
-.chip {
+.pill {
+  display: inline-flex;
+  align-items: center;
   border: 1px solid #374151;
-  border-radius: 0.75rem;
-  padding: 0.5rem 0.75rem;
-  color: #cbd5e1;
-  text-decoration: none;
-  transition: all 0.3s ease;
-}
-
-.chip:hover {
-  border-color: #34d399;
-  color: #ecfeff;
-  transform: translateY(-2px);
-}
-
-.action-button {
-  border: 0;
-  border-radius: 0.9rem;
-  padding: 0.85rem 1rem;
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-  transition: transform 0.2s ease, opacity 0.2s ease, background-color 0.2s ease;
-}
-
-.action-button:hover:enabled {
-  transform: translateY(-1px);
-}
-
-.action-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-
-.action-primary {
-  background: linear-gradient(135deg, #34d399, #14b8a6);
-  color: #031b17;
-}
-
-.contact-input {
-  width: 100%;
-  border: 1px solid rgba(71, 85, 105, 0.8);
-  border-radius: 1rem;
-  background: rgba(15, 23, 42, 0.72);
-  padding: 0.95rem 1rem;
-  color: #f8fafc;
-  outline: none;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-  resize: vertical;
-}
-
-.contact-input::placeholder {
-  color: #94a3b8;
-}
-
-.contact-input:focus {
-  border-color: rgba(52, 211, 153, 0.8);
-  box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.16);
-}
-
-.inline-login {
-  border: 0;
-  background: transparent;
-  padding: 0;
-  color: #fde68a;
-  font: inherit;
-  font-weight: 700;
-  text-decoration: underline;
-  cursor: pointer;
-}
-
-.inline-login:hover {
-  color: #fef3c7;
-}
-
-.status-dot {
-  width: 0.7rem;
-  height: 0.7rem;
   border-radius: 999px;
-  background: #f59e0b;
-  box-shadow: 0 0 0 6px rgba(245, 158, 11, 0.12);
-  flex-shrink: 0;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.75rem;
+  color: #cbd5e1;
+  background: transparent;
 }
 
-.status-dot[data-authenticated='true'] {
-  background: #34d399;
-  box-shadow: 0 0 0 6px rgba(52, 211, 153, 0.12);
+.pager-btn {
+  border: 1px solid #374151;
+  border-radius: 0.5rem;
+  background: transparent;
+  padding: 0.4rem 0.75rem;
+  color: #e2e8f0;
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
 }
 
-.reveal {
-  opacity: 0;
-  transform: translateY(14px);
-  animation: rise 0.75s ease forwards;
+.pager-btn:hover:enabled {
+  border-color: #64748b;
 }
 
-.delay-1 {
-  animation-delay: 0.1s;
-}
-
-.delay-2 {
-  animation-delay: 0.25s;
-}
-
-.delay-3 {
-  animation-delay: 0.4s;
-}
-
-@keyframes rise {
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.pager-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 </style>

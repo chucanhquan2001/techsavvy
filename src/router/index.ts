@@ -10,11 +10,29 @@ const router = createRouter({
       component: () => import('@/views/HomeView.vue'),
     },
     {
+      path: '/about',
+      name: 'about',
+      component: () => import('@/views/AboutView.vue'),
+    },
+    {
+      path: '/trends/:slug',
+      name: 'tech-trend-detail',
+      component: () => import('@/views/TechTrendDetailView.vue'),
+    },
+    {
+      path: '/markets/:instrument',
+      name: 'market-instrument',
+      component: () => import('@/views/MarketInstrumentView.vue'),
+    },
+    {
       path: authConfig.redirectPath,
       name: 'auth-callback',
       component: () => import('@/views/AuthCallbackView.vue'),
     },
   ],
+  scrollBehavior() {
+    return { top: 0 };
+  },
 });
 
 export default router;

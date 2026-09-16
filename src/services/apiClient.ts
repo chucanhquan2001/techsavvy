@@ -4,9 +4,27 @@
  */
 
 import { apiConfig } from '@/config/api';
+import type { ApiResponse, QueryParams } from '@/types/api';
 
 interface RequestOptions extends RequestInit {
   timeout?: number;
+  params?: QueryParams;
+  withCredentials?: boolean;
+}
+
+function buildUrl(baseUrl: string, endpoint: string, params?: QueryParams): string {
+  const url = new URL(`${baseUrl}${endpoint}`);
+
+  if (params) {
+    Object.entries(params).forEach(([key, value]) => {
+      if (value === undefined || value === null || value === '') {
+        return;
+      }
+      url.searchParams.set(key, String(value));
+    });
+  }
+
+  return url.toString();
 }
 
 class ApiClient {
@@ -22,30 +40,47 @@ class ApiClient {
     endpoint: string,
     options: RequestOptions = {}
   ): Promise<T> {
-    const { timeout = this.timeout, ...fetchOptions } = options;
+    const {
+      timeout = this.timeout,
+      params,
+      withCredentials = false,
+      ...fetchOptions
+    } = options;
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
 
     try {
-      const response = await fetch(`${this.baseUrl}${endpoint}`, {
+      const response = await fetch(buildUrl(this.baseUrl, endpoint, params), {
         ...fetchOptions,
         signal: controller.signal,
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json',
+          Accept: 'application/json',
           ...fetchOptions.headers,
         },
-        credentials: 'include',
+        credentials: withCredentials ? 'include' : 'omit',
       });
 
       clearTimeout(timeoutId);
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      let data: T | null = null;
+
+      try {
+        data = (await response.json()) as T;
+      } catch {
+        data = null;
       }
 
-      return await response.json();
+      if (!response.ok) {
+        const message =
+          data && typeof data === 'object' && 'message' in data
+            ? String((data as { message?: string }).message)
+            : `HTTP error! status: ${response.status}`;
+        throw new Error(message);
+      }
+
+      return data as T;
     } catch (error) {
       clearTimeout(timeoutId);
       throw error;
@@ -59,10 +94,24 @@ class ApiClient {
     });
   }
 
-  async get<T>(endpoint: string): Promise<T> {
+  async get<T>(endpoint: string, params?: QueryParams): Promise<T> {
     return this.request<T>(endpoint, {
       method: 'GET',
+      params,
     });
+  }
+
+  async getEnvelope<T>(
+    endpoint: string,
+    params?: QueryParams
+  ): Promise<ApiResponse<T>> {
+    const response = await this.get<ApiResponse<T>>(endpoint, params);
+
+    if (response.status && response.status !== 'ok') {
+      throw new Error(response.message || 'Request failed');
+    }
+
+    return response;
   }
 }
 
